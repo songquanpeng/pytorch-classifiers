@@ -130,11 +130,7 @@ def parse_args():
 
     # Evaluation related arguments
     parser.add_argument('--eval_iter', type=int, default=0, help='Use which iter to evaluate.')
-    parser.add_argument('--keep_all_eval_samples', type=str2bool, default=False)
-    parser.add_argument('--keep_best_eval_samples', type=str2bool, default=True)
     parser.add_argument('--eval_batch_size', type=int, default=64)
-    parser.add_argument('--selected_path', type=str, required=False,
-                        help="Every time we sample, we will translate the images in this path")
 
     # Optimizing related arguments.
     parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate.")

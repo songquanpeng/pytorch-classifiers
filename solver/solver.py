@@ -10,7 +10,7 @@ from data.fetcher import Fetcher
 from models.build import build_model
 from solver.utils import he_init
 from utils.checkpoint import CheckpointIO
-from utils.file import write_record, delete_model, delete_sample
+from utils.file import write_record, delete_model
 from utils.misc import send_message
 from utils.model import print_network
 
@@ -147,16 +147,10 @@ class Solver:
                         delete_model(args.model_dir, best_step)
                     best_acc = acc
                     best_step = step
-                else:
-                    # Otherwise just delete the samples.
-                    if not args.keep_all_eval_samples:
-                        delete_sample(args.eval_dir, step)
                 info = f"step: {step} current acc: {acc * 100:.4f}% history best acc: {best_acc * 100:.4f}%"
                 send_message(info, args.exp_id)
                 write_record(info, args.record_file)
         send_message("Model training completed.")
-        if not args.keep_best_eval_samples:
-            delete_sample(args.eval_dir, best_step)
 
     @torch.no_grad()
     def evaluate_model(self, nets, loader):
@@ -166,7 +160,6 @@ class Solver:
             output = nets.classifier(x)
             y_hat = output.argmax(dim=1)
             count += y_hat.eq(y).sum().item()
-            pass
         acc = count / (len(loader) * self.args.batch_size)
         return acc
 
