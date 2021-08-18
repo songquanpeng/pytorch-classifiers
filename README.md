@@ -1,14 +1,32 @@
-# PyTorch Template
-> A clear PyTorch template for swift model building.
+# PyTorch Classifiers
+> PyTorch implementation of the classic classifiers network.
 
-## Features
-+ [x] Well-organized project template out of the box.
-+ [x] Automatically record the model version (by saving the git commit hash) for later reproduction.
-+ [x] Use JSON file or command line arguments to specify arguments.
-+ [x] The results of each experiment are properly stored.
-+ [x] Use the cache to speed up the model training & evaluation process.
+## Implemented Classifiers
++ [x] LeNet
++ [ ] AlexNet
++ [ ] VGGNet
++ [ ] ResNet
++ [ ] Inception-v3
++ [ ] DenseNet
++ [ ] SENet
++ [ ] EfficientNet
+
+## Architectures
+### LeNet
+![arch](./assets/lenet.png)
+[Image Credit](http://yann.lecun.com/exdb/publis/pdf/lecun-98.pdf)
+
+
+## Results
+|Model|Accuracy|
+|---|---|
+|LeNet-5|52.1994%|
+
+Experiment setup:
+1. Dataset: CIFAR-10
+2. Training iterations: 10k
+3. Batch size: 32 
 
 
 ## Others
-I referred [StarGAN v2's official implementation](https://github.com/clovaai/stargan-v2) when crafting this template, 
-so don't be surprised when you see some code is similar.
+This repository is for practice purposes only.

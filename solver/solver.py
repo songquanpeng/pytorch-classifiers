@@ -1,20 +1,18 @@
-import torch
-import os
-import time
 import datetime
+import time
 
+import torch
+import torch.nn.functional as F
 from munch import Munch
-from utils.checkpoint import CheckpointIO
-from utils.misc import get_datetime, send_message
-from utils.model import print_network
-from utils.file import delete_dir, write_record, delete_model, list_all_images, delete_sample
-from models.build import build_model
-from solver.utils import he_init, moving_average
-from solver.misc import translate_using_latent, generate_samples
-from solver.loss import compute_g_loss, compute_d_loss
+from tqdm import tqdm
+
 from data.fetcher import Fetcher
-from metrics.eval import calculate_metrics, calculate_total_fid
-from metrics.fid import calculate_fid_given_paths
+from models.build import build_model
+from solver.utils import he_init
+from utils.checkpoint import CheckpointIO
+from utils.file import write_record, delete_model, delete_sample
+from utils.misc import send_message
+from utils.model import print_network
 
 
 class Solver:
@@ -22,13 +20,10 @@ class Solver:
         super().__init__()
         self.args = args
         self.device = torch.device(args.device)
-        self.nets, self.nets_ema = build_model(args)
+        self.nets = build_model(args)
         for name, module in self.nets.items():
             print_network(module, name)
-        # self.to(self.device)
         for net in self.nets.values():
-            net.to(self.device)
-        for net in self.nets_ema.values():
             net.to(self.device)
 
         if args.mode == 'train':
@@ -37,15 +32,14 @@ class Solver:
             for net in self.nets.keys():
                 self.optims[net] = torch.optim.Adam(
                     params=self.nets[net].parameters(),
-                    lr=args.d_lr if net == 'discriminator' else args.lr,
+                    lr=args.lr,
                     betas=(args.beta1, args.beta2),
                     weight_decay=args.weight_decay)
             self.ckptios = [
                 CheckpointIO(args.model_dir + '/{:06d}_nets.ckpt', **self.nets),
-                CheckpointIO(args.model_dir + '/{:06d}_nets_ema.ckpt', **self.nets_ema),
                 CheckpointIO(args.model_dir + '/{:06d}_optims.ckpt', **self.optims)]
         else:
-            self.ckptios = [CheckpointIO(args.model_dir + '/{:06d}_nets_ema.ckpt', **self.nets_ema)]
+            self.ckptios = [CheckpointIO(args.model_dir + '/{:06d}_nets.ckpt', **self.nets)]
 
         self.use_tensorboard = args.use_tensorboard
         if self.use_tensorboard:
@@ -64,7 +58,7 @@ class Solver:
             pass
 
     def train_mode(self, training=True):
-        for nets in [self.nets, self.nets_ema]:
+        for nets in [self.nets]:
             for name, network in nets.items():
                 # We don't care the pretrained models, they should be set to eval() when loading.
                 if name not in self.args.pretrained_models:
@@ -92,19 +86,9 @@ class Solver:
     def train(self, loaders):
         args = self.args
         nets = self.nets
-        nets_ema = self.nets_ema
         optims = self.optims
 
         train_fetcher = Fetcher(loaders.train, args)
-        test_fetcher = Fetcher(loaders.test, args)
-
-        # Those fixed samples are used to show the trend.
-        fixed_train_sample = next(train_fetcher)
-        fixed_test_sample = next(test_fetcher)
-        if args.selected_path:
-            # actually we don't care y
-            fixed_selected_samples = next(iter(loaders.selected))
-            fixed_selected_samples = fixed_selected_samples.to(self.device)
 
         # Load or initialize the model parameters.
         if args.start_iter > 0:
@@ -112,31 +96,21 @@ class Solver:
         else:
             self.initialize_parameters()
 
-        best_fid = 10000
+        best_acc = 0
         best_step = 0
         print('Start training...')
         start_time = time.time()
         for step in range(args.start_iter + 1, args.end_iter + 1):
             self.train_mode()
-            sample_org = next(train_fetcher)  # sample that to be translated
-            sample_ref = next(train_fetcher)  # reference samples
+            sample = next(train_fetcher)
 
-            # Train the discriminator
-            d_loss, d_loss_ref = compute_d_loss(nets, args, sample_org, sample_ref)
+            # Train the classifier
+            y_hat = nets.classifier(sample.x)
+            loss = F.cross_entropy(y_hat, sample.y)
+            loss_ref = Munch(loss=loss.item())
             self.zero_grad()
-            d_loss.backward()
-            optims.discriminator.step()
-
-            # Train the generator
-            g_loss, g_loss_ref = compute_g_loss(nets, args, sample_org, sample_ref)
-            self.zero_grad()
-            g_loss.backward()
-            optims.generator.step()
-            optims.mapping_network.step()
-
-            # Update generator_ema
-            moving_average(nets.generator, nets_ema.generator, beta=args.ema_beta)
-            moving_average(nets.mapping_network, nets_ema.mapping_network, beta=args.ema_beta)
+            loss.backward()
+            optims.classifier.step()
 
             self.eval_mode()
 
@@ -145,9 +119,8 @@ class Solver:
                 elapsed = str(datetime.timedelta(seconds=elapsed))[:-7]
                 log = "[%s]-[%i/%i]: " % (elapsed, step, args.end_iter)
                 all_losses = dict()
-                for loss, prefix in zip([d_loss_ref, g_loss_ref], ['D/', 'G/']):
-                    for key, value in loss.items():
-                        all_losses[prefix + key] = value
+                for key, value in loss_ref.items():
+                    all_losses[key] = value
                 log += ' '.join(['%s: [%.4f]' % (key, value) for key, value in all_losses.items()])
                 print(log)
                 if args.save_loss:
@@ -160,29 +133,6 @@ class Solver:
                     for tag, value in all_losses.items():
                         self.logger.scalar_summary(tag, value, step)
 
-            if step % args.sample_every == 0:
-                def training_sampler(which_nets, sample_prefix=""):
-                    repeat_num = 2
-                    N = args.batch_size
-                    y_trg_list = [torch.tensor(y).repeat(N).to(self.device) for y in range(min(args.num_domains, 5))]
-                    z_trg_list = torch.randn(repeat_num, 1, args.latent_dim).repeat(1, N, 1).to(self.device)
-                    translate_using_latent(which_nets, args, fixed_test_sample.x, y_trg_list, z_trg_list,
-                                           os.path.join(args.sample_dir, f"{sample_prefix}latent_test_{step}.jpg"))
-                    translate_using_latent(which_nets, args, fixed_train_sample.x, y_trg_list, z_trg_list,
-                                           os.path.join(args.sample_dir, f"{sample_prefix}latent_train_{step}.jpg"))
-                    if args.selected_path:
-                        N = fixed_selected_samples.shape[0]
-                        y_trg_list = [torch.tensor(y).repeat(N).to(self.device) for y in
-                                      range(min(args.num_domains, 5))]
-                        z_trg_list = torch.randn(repeat_num, 1, args.latent_dim).repeat(1, N, 1).to(self.device)
-                        translate_using_latent(which_nets, args, fixed_selected_samples, y_trg_list, z_trg_list,
-                                               os.path.join(args.sample_dir,
-                                                            f"{sample_prefix}latent_selected_{step}.jpg"))
-
-                training_sampler(nets_ema, 'ema_')
-                if args.sample_non_ema:
-                    training_sampler(nets)
-
             if step % args.save_every == 0:
                 self.save_model(step)
                 last_step = step - args.save_every
@@ -190,20 +140,18 @@ class Solver:
                     delete_model(args.model_dir, last_step)
 
             if step % args.eval_every == 0:
-                fid = calculate_total_fid(nets_ema, args, step, keep_samples=True)
-                if fid < best_fid:
+                acc = self.evaluate_model(self.nets, loaders.test)
+                if acc > best_acc:
                     # New best model existed, delete old best model's weights and samples.
                     if not args.keep_all_models:
                         delete_model(args.model_dir, best_step)
-                    if not args.keep_all_eval_samples:
-                        delete_sample(args.eval_dir, best_step)
-                    best_fid = fid
+                    best_acc = acc
                     best_step = step
                 else:
                     # Otherwise just delete the samples.
                     if not args.keep_all_eval_samples:
                         delete_sample(args.eval_dir, step)
-                info = f"step: {step} current fid: {fid:.2f} history best fid: {best_fid:.2f}"
+                info = f"step: {step} current acc: {acc * 100:.4f}% history best acc: {best_acc * 100:.4f}%"
                 send_message(info, args.exp_id)
                 write_record(info, args.record_file)
         send_message("Model training completed.")
@@ -211,26 +159,18 @@ class Solver:
             delete_sample(args.eval_dir, best_step)
 
     @torch.no_grad()
-    def sample(self):
-        args = self.args
-        assert args.eval_iter != 0
-        self.load_model(args.eval_iter)
-        nets_ema = self.nets_ema
-        if not args.sample_id:
-            args.sample_id = get_datetime()
-        sample_path = os.path.join(args.sample_dir, args.sample_id)
-        generate_samples(nets_ema, args, sample_path)
-        return sample_path
+    def evaluate_model(self, nets, loader):
+        count = 0
+        for x, y in tqdm(loader):
+            x, y = x.to(self.device), y.to(self.device)
+            output = nets.classifier(x)
+            y_hat = output.argmax(dim=1)
+            count += y_hat.eq(y).sum().item()
+            pass
+        acc = count / (len(loader) * self.args.batch_size)
+        return acc
 
     @torch.no_grad()
-    def evaluate(self):
-        args = self.args
-        assert args.eval_path != "", "eval_path shouldn't be empty"
-        target_path = args.eval_path
-        sample_path = self.sample()
-        fid = calculate_fid_given_paths(paths=[target_path, sample_path], img_size=args.img_size,
-                                        batch_size=args.eval_batch_size)
-        print(f"FID is: {fid}")
-        send_message(f"Sample {args.sample_id}'s FID is {fid}")
-        if not args.keep_all_eval_samples:
-            delete_dir(sample_path)
+    def evaluate(self, loader):
+        acc = self.evaluate_model(self.nets, loader)
+        send_message(f"ACC: {acc * 100:.4f}%")

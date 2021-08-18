@@ -14,6 +14,8 @@ def send_message(message, exp_id=""):
                 print('Failed to send message.')
         except:
             print('Failed to send message.')
+    else:
+        print(message)
 
 
 def get_datetime(short=False):

@@ -1,15 +1,17 @@
-import torch
-import sys
+import argparse
 import json
 import os
-import argparse
 import random
+import sys
+
 import numpy as np
-from torch.backends import cudnn
-from utils.file import prepare_dirs, list_sub_folders
+import torch
 from munch import Munch
-from utils.misc import get_datetime, str2bool, get_commit_hash
+from torch.backends import cudnn
+
+from utils.file import prepare_dirs, list_sub_folders
 from utils.file import save_json
+from utils.misc import get_datetime, str2bool, get_commit_hash
 
 
 def setup_cfg(args):
@@ -23,7 +25,6 @@ def setup_cfg(args):
     if args.debug:
         print("Warning: running in debug mode, some settings will be override.")
         args.exp_id = "debug"
-        args.sample_every = 10
         args.eval_every = 20
         args.save_every = 20
         args.end_iter = args.start_iter + 60
@@ -35,23 +36,28 @@ def setup_cfg(args):
     args.sample_dir = os.path.join(args.exp_dir, args.exp_id, "samples")
     args.model_dir = os.path.join(args.exp_dir, args.exp_id, "models")
     args.eval_dir = os.path.join(args.exp_dir, args.exp_id, "eval")
-    prepare_dirs([args.log_dir, args.sample_dir, args.model_dir, args.eval_dir])
+    args.archive_dir = 'archive'
+    prepare_dirs([args.log_dir, args.sample_dir, args.model_dir, args.eval_dir, args.archive_dir])
     args.record_file = os.path.join(args.exp_dir, args.exp_id, "records.txt")
     args.loss_file = os.path.join(args.exp_dir, args.exp_id, "losses.csv")
 
-    args.domains = list_sub_folders(args.train_path, full_path=False)
-    args.num_domains = len(args.domains)
+    if args.dataset == 'MNIST':
+        args.num_classes = 10
+        args.img_size = 32
+        args.img_dim = 1
+    elif args.dataset == 'CIFAR-10':
+        args.num_classes = 10
+        args.img_size = 32
+    else:
+        raise NotImplementedError
 
-    if args.cache_dataset:
-        print("Warning: reset preload_dataset = True, because cache_dataset option enabled.")
-        args.preload_dataset = True
+    if args.which_model == 'LeNet-5':
+        args.img_dim = 1
+        args.img_size = 32
 
 
 def validate_cfg(args):
-    assert args.eval_every % args.save_every == 0
-    assert args.num_domains == len(list_sub_folders(args.test_path, full_path=False))
-    if args.cache_dataset:
-        assert args.preload_dataset, "Use cached dataset requires you enable preloading dataset!"
+    pass
 
 
 def load_cfg():
@@ -101,64 +107,47 @@ def parse_args():
 
     # Meta arguments.
     parser.add_argument('--debug', type=str2bool, default=False)
-    parser.add_argument('--mode', type=str, default='train', choices=['train', 'eval', 'sample'])
+    parser.add_argument('--mode', type=str, default='train', choices=['train', 'eval'])
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
 
     # Model related arguments.
+    parser.add_argument('--which_model', type=str, default='LeNet-5', choices=['LeNet-5'])
     parser.add_argument('--img_size', type=int, default=128)
-    parser.add_argument('--latent_dim', type=int, default=16)
-    parser.add_argument('--style_dim', type=int, default=64)
+    parser.add_argument('--img_dim', type=int, default=3, choices=[1, 3])
 
     # Dataset related arguments.
-    parser.add_argument('--dataset', type=str, required=True)
-    parser.add_argument('--npz_path', type=str)
-    parser.add_argument('--npz_image_root', type=str)
+    parser.add_argument('--dataset', type=str, default='CIFAR-10', choices=['MNIST', 'CIFAR-10'])
+    parser.add_argument('--dataset_root', type=str, default='archive')
+    parser.add_argument('--num_classes', type=int)
     parser.add_argument('--preload_dataset', type=str2bool, default=False, help='load entire dataset into memory')
     parser.add_argument('--cache_dataset', type=str2bool, default=False, help='generate & use cached dataset')
 
     # Training related arguments
     parser.add_argument('--parameter_init', type=str, default='he', choices=['he', 'default'])
     parser.add_argument('--start_iter', type=int, default=0)
-    parser.add_argument('--end_iter', type=int, default=100000)
+    parser.add_argument('--end_iter', type=int, default=10000)
     parser.add_argument('--num_workers', type=int, default=4)
-    parser.add_argument('--train_path', type=str, required=True)
-    parser.add_argument('--num_domains', type=int)
-    parser.add_argument('--domains', type=str, nargs='+')
-
-    # Sampling related arguments
-    parser.add_argument('--sample_id', type=str)
-    parser.add_argument('--sample_non_ema', type=str2bool, default=True,
-                        help='Whether we use the non-ema version model to sample?')
 
     # Evaluation related arguments
     parser.add_argument('--eval_iter', type=int, default=0, help='Use which iter to evaluate.')
     parser.add_argument('--keep_all_eval_samples', type=str2bool, default=False)
     parser.add_argument('--keep_best_eval_samples', type=str2bool, default=True)
-    parser.add_argument('--eval_repeat_num', type=int, default=1)
-    parser.add_argument('--eval_batch_size', type=int, default=32)
-    parser.add_argument('--test_path', type=str, required=True)
-    parser.add_argument('--eval_path', type=str, required=True, help="compare with those images")
-    parser.add_argument('--eval_cache', type=str2bool, default=True, help="Cache what can be safely cached")
+    parser.add_argument('--eval_batch_size', type=int, default=64)
     parser.add_argument('--selected_path', type=str, required=False,
                         help="Every time we sample, we will translate the images in this path")
 
     # Optimizing related arguments.
-    parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate for generator.")
-    parser.add_argument('--d_lr', type=float, default=1e-4, help="Learning rate for discriminator.")
+    parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate.")
     parser.add_argument('--beta1', type=float, default=0.0)
     parser.add_argument('--beta2', type=float, default=0.99)
     parser.add_argument('--weight_decay', type=float, default=1e-4)
-    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--ema_beta', type=float, default=0.999)
 
-    # Loss hyper arguments.
-    parser.add_argument('--lambda_adv', type=float, default=1)
-
     # Step related arguments.
-    parser.add_argument('--log_every', type=int, default=10)
-    parser.add_argument('--sample_every', type=int, default=1000)
-    parser.add_argument('--save_every', type=int, default=5000)
-    parser.add_argument('--eval_every', type=int, default=5000)
+    parser.add_argument('--log_every', type=int, default=100)
+    parser.add_argument('--save_every', type=int, default=10000)
+    parser.add_argument('--eval_every', type=int, default=1000)
 
     # Log related arguments.
     parser.add_argument('--use_tensorboard', type=str2bool, default=False)

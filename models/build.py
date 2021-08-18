@@ -1,21 +1,13 @@
-import copy
 from munch import Munch
-from models.generator import Generator
-from models.discriminator import Discriminator
-from models.mapping_network import MappingNetwork
 
-# If you use pretrained models here, make sure they are using the `eval` mode.
+from models import LeNet5
 
 
 def build_model(args):
-    generator = Generator(args)
-    discriminator = Discriminator(args)
-    mapping_network = MappingNetwork(args)
+    if args.which_model == 'LeNet-5':
+        classifier = LeNet5(args)
+    else:
+        raise NotImplementedError
 
-    generator_ema = copy.deepcopy(generator)
-    mapping_network_ema = copy.deepcopy(mapping_network)
-
-    nets = Munch(generator=generator, discriminator=discriminator, mapping_network=mapping_network)
-    nets_ema = Munch(generator=generator_ema, mapping_network=mapping_network_ema)
-
-    return nets, nets_ema
+    nets = Munch(classifier=classifier)
+    return nets
