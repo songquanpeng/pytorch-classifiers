@@ -9,9 +9,9 @@ import torch
 from munch import Munch
 from torch.backends import cudnn
 
-from utils.file import prepare_dirs, list_sub_folders
+from utils.file import prepare_dirs
 from utils.file import save_json
-from utils.misc import get_datetime, str2bool, get_commit_hash
+from utils.misc import str2bool, get_commit_hash
 
 
 def setup_cfg(args):
@@ -39,6 +39,9 @@ def setup_cfg(args):
     elif args.dataset == 'CIFAR-10':
         args.num_classes = 10
         args.img_size = 32
+    elif args.dataset == 'CIFAR-100':
+        args.num_classes = 100
+        args.img_size = 32
     else:
         raise NotImplementedError
 
@@ -59,6 +62,7 @@ def setup_cfg(args):
     prepare_dirs([args.log_dir, args.sample_dir, args.model_dir, args.eval_dir, args.archive_dir])
     args.record_file = os.path.join(args.exp_dir, args.exp_id, "records.txt")
     args.loss_file = os.path.join(args.exp_dir, args.exp_id, "losses.csv")
+
 
 def validate_cfg(args):
     pass
@@ -120,7 +124,7 @@ def parse_args():
     parser.add_argument('--img_dim', type=int, default=3, choices=[1, 3])
 
     # Dataset related arguments.
-    parser.add_argument('--dataset', type=str, default='CIFAR-10', choices=['MNIST', 'CIFAR-10'])
+    parser.add_argument('--dataset', type=str, default='CIFAR-10', choices=['MNIST', 'CIFAR-10', 'CIFAR-100'])
     parser.add_argument('--dataset_root', type=str, default='archive')
     parser.add_argument('--num_classes', type=int)
     parser.add_argument('--preload_dataset', type=str2bool, default=False, help='load entire dataset into memory')

@@ -4,8 +4,9 @@
 ## Implemented Classifiers
 + [x] LeNet
 + [x] AlexNet
-+ [ ] VGGNet
-+ [ ] ResNet
++ [ ] VGG16
++ [ ] GoogLeNet
++ [ ] ResNet-18, ResNet-50
 + [ ] Inception-v3
 + [ ] DenseNet
 + [ ] SENet
@@ -25,6 +26,16 @@ Notice: batch size is 32, trained for 10k iterations.
 |---|---|---|
 |LeNet-5|0.0371M|52.1994%|
 |AlexNet|58.3223M|80.5434%|
+
+Notice: batch size is 32, trained for 10k iterations.
+
+### Accuracy on CIFAR-100
+|Model|Parameters|Accuracy|
+|---|---|---|
+|LeNet-5|||
+|AlexNet|58.6910M|48.8256%|
+
+Notice: batch size is 32, trained for 10k iterations.
 
 ## Architectures
 ### LeNet

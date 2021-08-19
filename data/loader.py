@@ -2,7 +2,7 @@ import numpy as np
 from torch.utils import data
 from torch.utils.data.sampler import WeightedRandomSampler
 from torchvision import transforms
-from torchvision.datasets import MNIST, CIFAR10
+from torchvision.datasets import MNIST, CIFAR10, CIFAR100
 
 
 def _make_balanced_sampler(labels):
@@ -29,7 +29,7 @@ def get_train_loader(archive_dir, img_size, batch_size, dataset, num_workers=4, 
         ])
         transform = transforms.Compose(transform_list)
         dataset = MNIST(archive_dir, train=True, download=True, transform=transform)
-    elif dataset == 'CIFAR-10':
+    elif dataset in ['CIFAR-10', 'CIFAR-100']:
         transform_list.extend([
             transforms.Resize([img_size, img_size]),
             transforms.RandomHorizontalFlip(),
@@ -37,7 +37,12 @@ def get_train_loader(archive_dir, img_size, batch_size, dataset, num_workers=4, 
             transforms.Normalize(mean=norm_mean, std=norm_std),
         ])
         transform = transforms.Compose(transform_list)
-        dataset = CIFAR10(archive_dir, train=True, download=True, transform=transform)
+        if dataset == 'CIFAR-10':
+            dataset = CIFAR10(archive_dir, train=True, download=True, transform=transform)
+        elif dataset == 'CIFAR-100':
+            dataset = CIFAR100(archive_dir, train=True, download=True, transform=transform)
+        else:
+            raise NotImplementedError
     else:
         raise NotImplementedError
 
@@ -71,6 +76,8 @@ def get_test_loader(archive_dir, img_size, batch_size, dataset=None, num_workers
         dataset = MNIST(archive_dir, train=False, download=False, transform=transform)
     elif dataset == 'CIFAR-10':
         dataset = CIFAR10(archive_dir, train=False, download=False, transform=transform)
+    elif dataset == 'CIFAR-100':
+        dataset = CIFAR100(archive_dir, train=False, download=False, transform=transform)
     else:
         raise NotImplementedError
 
