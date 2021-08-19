@@ -150,7 +150,7 @@ class Solver:
                 info = f"step: {step} current acc: {acc * 100:.4f}% history best acc: {best_acc * 100:.4f}%"
                 send_message(info, args.exp_id)
                 write_record(info, args.record_file)
-        send_message("Model training completed.")
+        send_message("Model training completed.", args.exp_id)
 
     @torch.no_grad()
     def evaluate_model(self, nets, loader):

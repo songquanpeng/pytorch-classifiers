@@ -32,7 +32,7 @@ Notice: batch size is 32, trained for 10k iterations.
 ### Accuracy on CIFAR-100
 |Model|Parameters|Accuracy|
 |---|---|---|
-|LeNet-5|||
+|LeNet-5|0.0448M|15.8340%|
 |AlexNet|58.6910M|48.8256%|
 
 Notice: batch size is 32, trained for 10k iterations.
