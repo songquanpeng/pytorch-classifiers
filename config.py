@@ -32,15 +32,6 @@ def setup_cfg(args):
         print("Warning: reset num_workers = 0, because running on a Windows system.")
         args.num_workers = 0
 
-    args.log_dir = os.path.join(args.exp_dir, args.exp_id, "logs")
-    args.sample_dir = os.path.join(args.exp_dir, args.exp_id, "samples")
-    args.model_dir = os.path.join(args.exp_dir, args.exp_id, "models")
-    args.eval_dir = os.path.join(args.exp_dir, args.exp_id, "eval")
-    args.archive_dir = 'archive'
-    prepare_dirs([args.log_dir, args.sample_dir, args.model_dir, args.eval_dir, args.archive_dir])
-    args.record_file = os.path.join(args.exp_dir, args.exp_id, "records.txt")
-    args.loss_file = os.path.join(args.exp_dir, args.exp_id, "losses.csv")
-
     if args.dataset == 'MNIST':
         args.num_classes = 10
         args.img_size = 32
@@ -54,7 +45,20 @@ def setup_cfg(args):
     if args.which_model == 'LeNet-5':
         args.img_dim = 1
         args.img_size = 32
+    elif args.which_model == 'AlexNet':
+        args.img_size = 227
 
+    if not args.exp_id:
+        args.exp_id = f"{args.which_model}-{args.dataset}-bs{args.batch_size}-img{args.img_dim}x{args.img_size}"
+
+    args.log_dir = os.path.join(args.exp_dir, args.exp_id, "logs")
+    args.sample_dir = os.path.join(args.exp_dir, args.exp_id, "samples")
+    args.model_dir = os.path.join(args.exp_dir, args.exp_id, "models")
+    args.eval_dir = os.path.join(args.exp_dir, args.exp_id, "eval")
+    args.archive_dir = 'archive'
+    prepare_dirs([args.log_dir, args.sample_dir, args.model_dir, args.eval_dir, args.archive_dir])
+    args.record_file = os.path.join(args.exp_dir, args.exp_id, "records.txt")
+    args.loss_file = os.path.join(args.exp_dir, args.exp_id, "losses.csv")
 
 def validate_cfg(args):
     pass
@@ -102,7 +106,7 @@ def parse_args():
     # About this experiment.
     parser.add_argument('--about', type=str, default="")
     parser.add_argument('--hash', type=str, required=False, help="Git commit hash for this experiment.")
-    parser.add_argument('--exp_id', type=str, default=get_datetime(), help='Folder name and id for this experiment.')
+    parser.add_argument('--exp_id', type=str, help='Folder name and id for this experiment.')
     parser.add_argument('--exp_dir', type=str, default='expr')
 
     # Meta arguments.
@@ -111,7 +115,7 @@ def parse_args():
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
 
     # Model related arguments.
-    parser.add_argument('--which_model', type=str, default='LeNet-5', choices=['LeNet-5'])
+    parser.add_argument('--which_model', type=str, default='LeNet-5', choices=['LeNet-5', 'AlexNet'])
     parser.add_argument('--img_size', type=int, default=128)
     parser.add_argument('--img_dim', type=int, default=3, choices=[1, 3])
 
