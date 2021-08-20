@@ -1,6 +1,6 @@
 from munch import Munch
 
-from models import LeNet5, AlexNet
+from models import LeNet5, AlexNet, VGG16
 
 
 def build_model(args):
@@ -8,6 +8,8 @@ def build_model(args):
         classifier = LeNet5(args)
     elif args.which_model == 'AlexNet':
         classifier = AlexNet(args)
+    elif args.which_model == 'VGG16':
+        classifier = VGG16(args)
     else:
         raise NotImplementedError
 
