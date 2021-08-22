@@ -1,9 +1,5 @@
 from torch import nn
 
-from models.layers import VGGConvBlock
-
-# TorchVision's implementation:
-
 
 class VGG16(nn.Module):
     def __init__(self, args):
@@ -24,7 +20,9 @@ class VGG16(nn.Module):
         dim_fc = 4096
         layers = [
             nn.Linear(dim_conv, dim_fc),
+            nn.ReLU(),
             nn.Linear(dim_fc, dim_fc),
+            nn.ReLU(),
             nn.Linear(dim_fc, args.num_classes)
         ]
         self.fc = nn.Sequential(*layers)
@@ -33,3 +31,20 @@ class VGG16(nn.Module):
         h = self.conv(x)
         y = self.fc(h.view(x.shape[0], -1))
         return y
+
+
+class VGGConvBlock(nn.Module):
+    def __init__(self, num_conv, in_dim, out_dim, kernel_size=3, stride=1):
+        super().__init__()
+        layers = []
+        for i in range(num_conv):
+            layers.extend([
+                nn.Conv2d(in_dim, out_dim, kernel_size, stride, padding=1),
+                nn.ReLU()
+            ])
+            in_dim = out_dim
+        layers.append(nn.MaxPool2d(2, 2))
+        self.main = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.main(x)
