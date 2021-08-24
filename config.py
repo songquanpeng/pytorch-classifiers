@@ -50,7 +50,7 @@ def setup_cfg(args):
         args.img_size = 32
     elif args.which_model == 'AlexNet':
         args.img_size = 227
-    elif args.which_model == 'VGG16':
+    elif args.which_model in ['VGG16', 'GoogLeNet']:
         args.img_size = 224
 
     if not args.exp_id:
@@ -121,7 +121,7 @@ def parse_args():
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
 
     # Model related arguments.
-    parser.add_argument('--which_model', type=str, default='LeNet-5', choices=['LeNet-5', 'AlexNet', 'VGG16'])
+    parser.add_argument('--which_model', type=str, default='LeNet-5', choices=['LeNet-5', 'AlexNet', 'VGG16', 'GoogLeNet'])
     parser.add_argument('--img_size', type=int, default=128)
     parser.add_argument('--img_dim', type=int, default=3, choices=[1, 3])
 

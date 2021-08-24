@@ -5,9 +5,9 @@
 + [x] LeNet
 + [x] AlexNet
 + [x] VGG16
-+ [ ] GoogLeNet
++ [ ] GoogLeNet (Inception-v1)
 + [ ] ResNet-18, ResNet-50
-+ [ ] Inception-v3
++ [ ] Inception-v3, Inception-v4
 + [ ] DenseNet
 + [ ] SENet
 + [ ] EfficientNet
@@ -46,6 +46,10 @@
 ### VGG16
 ![arch](./assets/vgg16.png)
 [Image Credit](https://neurohive.io/en/popular-networks/vgg16/)
+
+## GoogLeNet
+![arch](./assets/googlenet.png)
+[Image Credit](https://www.geeksforgeeks.org/understanding-googlenet-model-cnn-architecture/)
 
 ## Others
 This repository is for practice purposes only.
