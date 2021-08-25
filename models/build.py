@@ -1,6 +1,6 @@
 from munch import Munch
-
-from models import LeNet5, AlexNet, VGG16, GoogLeNet
+import models
+from models import *
 
 
 def build_model(args):
@@ -12,6 +12,9 @@ def build_model(args):
         classifier = VGG16(args)
     elif args.which_model == 'GoogLeNet':
         classifier = GoogLeNet(args)
+    elif args.which_model.startswith('ResNet'):
+        model_name = 'ResNet' + args.which_model[7:]
+        classifier = getattr(models, model_name)(args)
     else:
         raise NotImplementedError
 

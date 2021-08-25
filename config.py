@@ -52,7 +52,8 @@ def setup_cfg(args):
         args.img_size = 227
     elif args.which_model in ['VGG16', 'GoogLeNet']:
         args.img_size = 224
-
+    elif args.which_model.startswith('ResNet'):
+        args.img_size = 224
     if not args.exp_id:
         args.exp_id = f"{args.which_model}-{args.dataset}-bs{args.batch_size}-img{args.img_dim}x{args.img_size}"
 
@@ -121,7 +122,9 @@ def parse_args():
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
 
     # Model related arguments.
-    parser.add_argument('--which_model', type=str, default='LeNet-5', choices=['LeNet-5', 'AlexNet', 'VGG16', 'GoogLeNet'])
+    parser.add_argument('--which_model', type=str, default='LeNet-5',
+                        choices=['LeNet-5', 'AlexNet', 'VGG16', 'GoogLeNet', 'ResNet-18', 'ResNet-34', 'ResNet-50',
+                                 'ResNet-101', 'ResNet-152'])
     parser.add_argument('--img_size', type=int, default=128)
     parser.add_argument('--img_dim', type=int, default=3, choices=[1, 3])
 
